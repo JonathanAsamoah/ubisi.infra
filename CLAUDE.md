@@ -90,6 +90,23 @@ GitHub Actions pipelines in `.github/workflows/`:
 
 Both authenticate via **OIDC** — the repo assumes an IAM role specified by the `AWS_ROLE_ARN` repository variable (no long-lived credentials). The OIDC provider and IAM role must be set up in AWS before the pipeline can run.
 
+## Security Scanning (Checkov)
+
+[Checkov](https://www.checkov.io/) runs static security analysis on the OpenTofu modules. Configuration lives in `.checkov.yml` at the repo root.
+
+```bash
+# Install (one-time)
+pip install checkov
+
+# Run from repo root — picks up .checkov.yml automatically
+checkov
+```
+
+- **Scope:** scans `modules/` only (framework: `terraform`)
+- **Soft-fail:** enabled — findings are informational and don't block CI
+- **Skip list:** documented in `.checkov.yml` with reasons for each suppressed check
+- **CI:** runs as a separate `security` job in `plan.yml`, posts results as a PR comment
+
 ## Adding a New Module
 
 1. Create `modules/<name>/` with `main.tf`, `variables.tf`, `outputs.tf`

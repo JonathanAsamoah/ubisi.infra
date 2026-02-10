@@ -8,6 +8,7 @@ on:
       - 'modules/**'
       - 'environments/**'
       - 'terragrunt.hcl'
+      - '.checkov.yml'
 
 permissions:
   id-token: write
@@ -107,3 +108,74 @@ jobs:
       - name: Fail on plan error
         if: steps.plan.outputs.exitcode != '0'
         run: exit 1
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Checkov
+        run: pip install checkov==3.2.346
+
+      - name: Run Checkov
+        id: checkov
+        run: |
+          checkov --output cli 2>&1 | tee checkov_output.txt
+          echo "exitcode=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+        continue-on-error: true
+
+      - name: Post Checkov results to PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const output = fs.readFileSync('checkov_output.txt', 'utf8');
+            const truncated = output.length > 60000
+              ? output.substring(output.length - 60000) + '\n\n... (truncated)'
+              : output;
+            const exitcode = '${{ steps.checkov.outputs.exitcode }}';
+            const icon = exitcode === '0' ? '✅' : '⚠️';
+
+            const body = `#### ${icon} Checkov Security Scan
+            <details><summary>Show scan results</summary>
+
+            \`\`\`
+            ${truncated}
+            \`\`\`
+
+            </details>
+
+            *Triggered by @${{ github.actor }} in commit ${{ github.sha }}*`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const botComment = comments.find(c =>
+              c.user.type === 'Bot' && c.body.includes('Checkov Security Scan')
+            );
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
