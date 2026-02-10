@@ -1,0 +1,56 @@
+name: Terragrunt Apply
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'modules/**'
+      - 'environments/**'
+      - 'terragrunt.hcl'
+
+concurrency:
+  group: terragrunt-apply
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  TOFU_VERSION: "1.9.0"
+  TERRAGRUNT_VERSION: "0.72.6"
+  AWS_REGION: "eu-west-1"
+
+jobs:
+  apply:
+    name: Apply
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup OpenTofu
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: ${{ env.TOFU_VERSION }}
+          tofu_wrapper: false
+
+      - name: Setup Terragrunt
+        uses: gruntwork-io/setup-terragrunt@v1
+        with:
+          terragrunt_version: ${{ env.TERRAGRUNT_VERSION }}
+
+      - name: Terragrunt init
+        working-directory: environments/dev/eu-west-1
+        run: terragrunt run-all init --terragrunt-non-interactive
+
+      - name: Terragrunt apply
+        working-directory: environments/dev/eu-west-1
+        run: terragrunt run-all apply --terragrunt-non-interactive -auto-approve

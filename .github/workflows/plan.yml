@@ -1,0 +1,108 @@
+name: Terragrunt Plan
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'modules/**'
+      - 'environments/**'
+      - 'terragrunt.hcl'
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+env:
+  TOFU_VERSION: "1.9.0"
+  TERRAGRUNT_VERSION: "0.72.6"
+  AWS_REGION: "eu-west-1"
+
+jobs:
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup OpenTofu
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: ${{ env.TOFU_VERSION }}
+          tofu_wrapper: false
+
+      - name: Setup Terragrunt
+        uses: gruntwork-io/setup-terragrunt@v1
+        with:
+          terragrunt_version: ${{ env.TERRAGRUNT_VERSION }}
+
+      - name: Terragrunt init
+        working-directory: environments/dev/eu-west-1
+        run: terragrunt run-all init --terragrunt-non-interactive
+
+      - name: Terragrunt plan
+        id: plan
+        working-directory: environments/dev/eu-west-1
+        run: |
+          terragrunt run-all plan --terragrunt-non-interactive -no-color 2>&1 | tee plan_output.txt
+          echo "exitcode=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+        continue-on-error: true
+
+      - name: Post plan to PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const output = fs.readFileSync('environments/dev/eu-west-1/plan_output.txt', 'utf8');
+            const truncated = output.length > 60000
+              ? output.substring(output.length - 60000) + '\n\n... (truncated)'
+              : output;
+            const exitcode = '${{ steps.plan.outputs.exitcode }}';
+            const icon = exitcode === '0' ? '✅' : '❌';
+
+            const body = `#### ${icon} Terragrunt Plan
+            <details><summary>Show plan output</summary>
+
+            \`\`\`
+            ${truncated}
+            \`\`\`
+
+            </details>
+
+            *Triggered by @${{ github.actor }} in commit ${{ github.sha }}*`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const botComment = comments.find(c =>
+              c.user.type === 'Bot' && c.body.includes('Terragrunt Plan')
+            );
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+      - name: Fail on plan error
+        if: steps.plan.outputs.exitcode != '0'
+        run: exit 1
