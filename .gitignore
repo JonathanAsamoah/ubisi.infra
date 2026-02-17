@@ -11,6 +11,9 @@ override.tf.json
 *_override.tf.json
 .terraform.lock.hcl
 
+# Lambda build artifacts
+modules/osm-beach-extractor/dist/
+
 # Environment variables
 .env
 *.tfvars
