@@ -18,9 +18,7 @@ OVERPASS_QUERY = """
   way["natural"="beach"];
   relation["natural"="beach"];
 );
-out body;
->;
-out skel qt;
+out geom;
 """
 
 TAGS_OF_INTEREST = {
@@ -43,7 +41,7 @@ def _query_overpass():
     """POST the OverpassQL query and return the parsed JSON response."""
     data = urllib.parse.urlencode({"data": OVERPASS_QUERY}).encode()
     req = urllib.request.Request(OVERPASS_URL, data=data, method="POST")
-    with urllib.request.urlopen(req, timeout=240) as resp:
+    with urllib.request.urlopen(req, timeout=600) as resp:
         return json.loads(resp.read().decode())
 
 
