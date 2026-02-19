@@ -22,3 +22,13 @@ output "log_group_name" {
   description = "Name of the CloudWatch log group"
   value       = aws_cloudwatch_log_group.lambda.name
 }
+
+output "service_user_name" {
+  description = "Name of the IAM service user with S3 read/write access"
+  value       = aws_iam_user.s3_service.name
+}
+
+output "service_user_arn" {
+  description = "ARN of the IAM service user with S3 read/write access"
+  value       = aws_iam_user.s3_service.arn
+}

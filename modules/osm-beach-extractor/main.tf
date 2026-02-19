@@ -1,5 +1,6 @@
 locals {
-  function_name = "${var.project}-${var.environment}-osm-beach-extractor"
+  function_name    = "${var.project}-${var.environment}-osm-beach-extractor"
+  service_username = "${var.project}-${var.environment}-beach-s3-user"
 }
 
 data "archive_file" "lambda" {
@@ -59,6 +60,38 @@ resource "aws_iam_role_policy" "lambda" {
   name   = "${local.function_name}-policy"
   role   = aws_iam_role.lambda.id
   policy = data.aws_iam_policy_document.lambda.json
+}
+
+# --- IAM Service User ---
+
+resource "aws_iam_user" "s3_service" {
+  name = local.service_username
+
+  tags = {
+    Name = local.service_username
+  }
+}
+
+data "aws_iam_policy_document" "s3_read_write" {
+  statement {
+    sid = "S3ReadWrite"
+    actions = [
+      "s3:GetObject",
+      "s3:PutObject",
+      "s3:DeleteObject",
+      "s3:ListBucket",
+    ]
+    resources = [
+      var.s3_bucket_arn,
+      "${var.s3_bucket_arn}/*",
+    ]
+  }
+}
+
+resource "aws_iam_user_policy" "s3_service" {
+  name   = "${local.service_username}-s3-policy"
+  user   = aws_iam_user.s3_service.name
+  policy = data.aws_iam_policy_document.s3_read_write.json
 }
 
 # --- CloudWatch ---
