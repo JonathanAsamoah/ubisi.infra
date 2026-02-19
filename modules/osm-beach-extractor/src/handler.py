@@ -18,7 +18,7 @@ OVERPASS_QUERY = """
   way["natural"="beach"];
   relation["natural"="beach"];
 );
-out geom;
+out center;
 """
 
 TAGS_OF_INTEREST = {
@@ -63,10 +63,9 @@ def _extract_features(elements):
             feature["lat"] = el.get("lat")
             feature["lon"] = el.get("lon")
         else:
-            if "bounds" in el:
-                feature["bounds"] = el["bounds"]
-            if "geometry" in el:
-                feature["geometry"] = el["geometry"]
+            center = el.get("center", {})
+            feature["lat"] = center.get("lat")
+            feature["lon"] = center.get("lon")
 
         features.append(feature)
     return features
