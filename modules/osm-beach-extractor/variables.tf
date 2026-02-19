@@ -38,7 +38,7 @@ variable "lambda_timeout" {
 variable "lambda_memory_size" {
   description = "Lambda function memory size in MB"
   type        = number
-  default     = 10240
+  default     = 3008
 }
 
 variable "log_retention_days" {
